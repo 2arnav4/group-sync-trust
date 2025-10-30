@@ -98,33 +98,27 @@ def get_group_details(group_id):
     members = [{"id": gm.user.id, "name": gm.user.name} for gm in group.members]
     return jsonify({"id": group.id, "name": group.name, "members": members})
 
-# --- ADD EXPENSE ---
-@app.route('/api/groups/<int:group_id>/expenses', methods=['POST'])
+# In app.py
+
+@app.route('/api/groups/<int:group_id>/expenses', methods=['GET'])
 @jwt_required()
-def add_expense(group_id):
-    user_id = int(get_jwt_identity())
-    if not GroupMember.query.filter_by(group_id=group_id, user_id=user_id).first():
-        return jsonify({"msg": "Access denied"}), 403
-    
-    data = request.get_json()
-    try:
-        split_type = SplitType[data['split_type'].upper()]
-        total_amount = float(data['total_amount'])
-        group = Group.query.get(group_id)
-        
-        expense = Expense(description=data['description'], total_amount=total_amount, group_id=group_id, payer_id=data['payer_id'], split_type=split_type)
-        db.session.add(expense)
-        
-        shares_data = calculate_shares(total_amount, split_type, data['participants'], [gm.user for gm in group.members])
-        for share_info in shares_data:
-            share = ExpenseShare(expense=expense, user_id=share_info['user_id'], amount_share=share_info['amount'])
-            db.session.add(share)
-            
-        db.session.commit()
-        return jsonify({"msg": "Expense added"}), 201
-    except (ValueError, KeyError) as e:
-        db.session.rollback()
-        return jsonify({"msg": str(e)}), 400
+def get_expenses(group_id):
+    # ... (authentication and user check)
+    expenses = Expense.query.filter_by(group_id=group_id).order_by(Expense.date.desc()).all()
+    result = [
+        {
+            "id": exp.id,
+            "description": exp.description,
+            "amount": exp.total_amount,
+            "date": exp.date.isoformat(),
+            "paidBy": exp.payer_id,  # Ensure this is a number
+            "payerName": exp.payer.name, # Add the name for display
+            "category": "General", # Example category
+            "isSmartContract": False,
+            "participants": [{"user_id": s.user_id, "name": s.user.name, "amount": s.amount_share} for s in exp.shares]
+        } for exp in expenses
+    ]
+    return jsonify(result)
 
 # --- GET EXPENSES ---
 @app.route('/api/groups/<int:group_id>/expenses', methods=['GET'])
