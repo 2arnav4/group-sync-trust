@@ -6,6 +6,7 @@ import click
 from flask_migrate import Migrate
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, JWTManager
 from dotenv import load_dotenv
+from flask_cors import CORS
 
 from models import db, bcrypt, User, Group, GroupMember, Role, Expense, ExpenseShare, SplitType
 from splits import calculate_shares, simplify_debts
@@ -23,6 +24,7 @@ db.init_app(app)
 bcrypt.init_app(app)
 jwt = JWTManager(app)
 migrate = Migrate(app, db)
+CORS(app)
 
 # --- CUSTOM CLI COMMAND TO INITIALIZE DB ---
 @click.command(name='init-db')
@@ -169,3 +171,31 @@ def get_simplified_debts(group_id):
     transactions = simplify_debts(balances)
     return jsonify(transactions)
 
+# Add this new endpoint anywhere in your app.py, e.g., after create_group
+
+@app.route('/api/groups/<int:group_id>/members', methods=['POST'])
+@jwt_required()
+def add_group_member(group_id):
+    # Only group admin can add new members
+    admin_id = int(get_jwt_identity())
+    group = Group.query.get(group_id)
+    if not group or group.admin_user_id != admin_id:
+        return jsonify({"msg": "Access denied: Only the group admin can add members"}), 403
+
+    data = request.get_json()
+    new_user_id = data.get('user_id')
+
+    # Check if the user to be added exists
+    if not User.query.get(new_user_id):
+        return jsonify({"msg": "User to be added does not exist"}), 404
+
+    # Check if user is already a member
+    if GroupMember.query.filter_by(group_id=group_id, user_id=new_user_id).first():
+        return jsonify({"msg": "User is already a member of this group"}), 409
+
+    # Add the new member
+    new_membership = GroupMember(group_id=group_id, user_id=new_user_id, role=Role.MEMBER)
+    db.session.add(new_membership)
+    db.session.commit()
+
+    return jsonify({"msg": f"User {new_user_id} added to group {group_id}"}), 201

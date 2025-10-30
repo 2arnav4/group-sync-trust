@@ -69,40 +69,45 @@ def run_all_tests():
         test_state["tokens"][user['name']] = resp.json()['access_token']
         test_state["user_ids"][user['name']] = None # Will get ID later
 
-    # 3. Group Flow
-    print_test_title("Group Management")
+        print_test_title("Group Management")
     # Alice creates a group
     resp = requests.post(f'{BASE_URL}/groups', json=group_data, headers=auth_headers('Alice'))
     if not print_test_result("Create Group (by Alice)", resp):
         return
     test_state["group_id"] = resp.json()['id']
 
+    # --- THIS IS THE NEW PART ---
+    # First, get both user IDs from the database by logging them in and storing their details
+    # We can't rely on the group details anymore for users who aren't in the group
+    for user_name in ["Alice", "Bob"]:
+        # A simple (but not ideal) way to get user ID is to have a /users/me endpoint
+        # For now, we'll just assume IDs are 1 and 2 from the creation order
+        if user_name == "Alice":
+            test_state["user_ids"]["Alice"] = 1
+        else:
+            test_state["user_ids"]["Bob"] = 2
+    print(f"  -> Assumed User IDs: {test_state['user_ids']}")
+    
+    # Alice adds Bob to the group
+    group_id = test_state["group_id"]
+    bob_id = test_state["user_ids"]["Bob"]
+    add_member_payload = {'user_id': bob_id}
+    resp = requests.post(f'{BASE_URL}/groups/{group_id}/members', json=add_member_payload, headers=auth_headers('Alice'))
+    if not print_test_result("Add Bob to Group (by Alice)", resp):
+        return # Stop if Bob can't be added
+    # --- END OF NEW PART ---
+
     # Alice gets her list of groups
     resp = requests.get(f'{BASE_URL}/groups', headers=auth_headers('Alice'))
     print_test_result("Get User's Groups (Alice)", resp)
 
-    # Bob should have no groups yet
+    # Bob should now have one group
     resp = requests.get(f'{BASE_URL}/groups', headers=auth_headers('Bob'))
-    print_test_result("Get User's Groups (Bob - should be empty)", resp)
+    print_test_result("Get User's Groups (Bob - should now have 1)", resp)
     
-    # Alice gets group details to find user IDs
-    group_id = test_state["group_id"]
+    # Alice gets group details to verify Bob is a member
     resp = requests.get(f'{BASE_URL}/groups/{group_id}', headers=auth_headers('Alice'))
-    if print_test_result("Get Group Details (by Alice)", resp):
-        # We need the user IDs for expenses, so we extract them here
-        for member in resp.json()['members']:
-            if member['name'] in test_state['user_ids']:
-                test_state['user_ids'][member['name']] = member['id']
-        print(f"  -> Captured User IDs: {test_state['user_ids']}")
-    
-    # Manually add Bob to the group (since invite endpoint isn't fully defined)
-    # This simulates an admin adding a member. A real invite flow would be different.
-    print("  -> NOTE: Manually associating Bob with the group for testing purposes.")
-    # In a real app, you might have a POST /api/groups/{id}/members endpoint
-    # For this test, we assume Bob joins, and we'll test his access later.
-    # We will simulate this by adding a GroupMember entry if this were a direct DB test.
-    # Since we are testing the API, we will just proceed assuming Bob was added.
-
+    print_test_result("Get Group Details (should include Bob)", resp)
 
     # 4. Expense & Splitting Flow
     print_test_title("Expense and Splitting")

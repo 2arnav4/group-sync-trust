@@ -1,4 +1,4 @@
-#!/Users/arnavsingla/Desktop/group-sync-trust/piche/split-smart-backend/venv/bin/python
+#!/Users/arnavsingla/Desktop/group-sync-trust/piche/split-smart-backend/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
