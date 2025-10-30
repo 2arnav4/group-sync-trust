@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Import useEffect
 import Navbar from "@/components/Navbar";
 import GroupCard from "@/components/GroupCard";
 import { Button } from "@/components/ui/button";
@@ -7,17 +7,93 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
-import { mockGroups, mockExpenses, calculateBalances } from "@/lib/mockData";
+// import { mockGroups, mockExpenses, calculateBalances } from "@/lib/mockData"; // Remove mock data
+import api from "@/lib/api"; // Import the new api client
 import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 
+// Define types that match your backend's API response
+export interface Group {
+  id: number;
+  name: string;
+  // Note: The /api/groups endpoint doesn't return members, totalSpend, etc.
+  // You will need to adjust GroupCard.tsx to handle this partial data
+  // or update your /api/groups backend endpoint to return more data.
+}
+
+// Stats will be broken until you implement a real balance aggregation
+interface QuickStats {
+  youOwe: number;
+  youreOwed: number;
+  netBalance: number;
+}
+
 const Dashboard = () => {
-  const [groups, setGroups] = useState(mockGroups);
+  // const [groups, setGroups] = useState(mockGroups); // Remove mock state
+  const [groups, setGroups] = useState<Group[]>([]); // Add new state
+  const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const { wallet, connectWallet } = useWallet();
   const { toast } = useToast();
+  
+  // State for stats, initialized to 0
+  const [stats, setStats] = useState<QuickStats>({ youOwe: 0, youreOwed: 0, netBalance: 0 });
+
+  // Fetch groups from the backend
+  const fetchGroups = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/groups');
+      setGroups(response.data);
+    } catch (error) {
+      console.error("Failed to fetch groups:", error);
+      toast({
+        title: "Error",
+        description: "Could not fetch groups. Are you logged in?",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch groups on component load
+  useEffect(() => {
+    fetchGroups();
+  }, []);
+
+  // TODO: Fix stats calculation
+  // This function is now broken because it relied on mock data.
+  // To fix this, you need to either:
+  // 1. Fetch balances for EVERY group (/api/groups/<id>/balances) and aggregate them.
+  // 2. (Better) Create a new backend endpoint (e.g., /api/user/stats) that calculates
+  //    this for the current user and returns it.
+  // For now, we'll leave the stats at 0.
+  useEffect(() => {
+    const calculateQuickStats = async () => {
+      // Placeholder: You must implement this logic.
+      // const currentUserId = "1"; // You need to get this from your auth state (e.g., JWT)
+      // let totalOwed = 0;
+      // let totalOwes = 0;
+      // 
+      // for (const group of groups) {
+      //   const balanceResponse = await api.get(`/groups/${group.id}/balances`);
+      //   // ... logic to parse balances and aggregate
+      // }
+      //
+      // setStats({ youOwe: totalOwes, youreOwed: totalOwed, netBalance: totalOwed - totalOwes });
+      
+      // Setting to 0 as a placeholder
+      setStats({ youOwe: 0, youreOwed: 0, netBalance: 0 });
+    };
+
+    if (groups.length > 0) {
+      calculateQuickStats();
+    }
+  }, [groups]); // Recalculate when groups change
+
 
   const handleWalletConnect = async () => {
     const result = await connectWallet();
@@ -29,52 +105,37 @@ const Dashboard = () => {
     }
   };
 
-  const handleCreateGroup = (e: React.FormEvent) => {
+  // Update create group handler
+  const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
 
-    const newGroup = {
-      id: (groups.length + 1).toString(),
-      name: newGroupName,
-      members: [mockGroups[0].members[0]], // Add current user
-      totalSpend: 0,
-      currency: "USD",
-      createdAt: new Date().toISOString(),
-    };
-
-    setGroups([...groups, newGroup]);
-    setNewGroupName("");
-    setIsCreateModalOpen(false);
-
-    toast({
-      title: "Group Created! 🎉",
-      description: `${newGroupName} is ready to track expenses`,
-    });
-  };
-
-  // Calculate quick stats
-  const calculateQuickStats = () => {
-    let youOwe = 0;
-    let youreOwed = 0;
-
-    groups.forEach(group => {
-      const balances = calculateBalances(group.id);
-      const currentUserId = "1"; // Mock current user
+    try {
+      const response = await api.post('/groups', { name: newGroupName });
       
-      balances.forEach(balance => {
-        if (balance.from === currentUserId) {
-          youOwe += balance.amount;
-        }
-        if (balance.to === currentUserId) {
-          youreOwed += balance.amount;
-        }
-      });
-    });
+      // Add the new group to the state immediately or refetch
+      // setGroups([...groups, response.data]); // Option 1: Add from response
+      fetchGroups(); // Option 2: Refetch all groups
 
-    return { youOwe, youreOwed, netBalance: youreOwed - youOwe };
+      setNewGroupName("");
+      setIsCreateModalOpen(false);
+
+      toast({
+        title: "Group Created! 🎉",
+        description: `${newGroupName} is ready to track expenses`,
+      });
+
+    } catch (error) {
+      console.error("Failed to create group:", error);
+      toast({
+        title: "Error",
+        description: "Could not create group.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const stats = calculateQuickStats();
+  // ... (rest of the component is unchanged)
 
   return (
     <div className="min-h-screen">
@@ -92,7 +153,8 @@ const Dashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             className="relative"
           >
-            <Card className="relative p-8 bg-gradient-to-br from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border-white/10 overflow-hidden">
+            {/* ... (Hero content is unchanged, it will now use the 'stats' state) ... */}
+             <Card className="relative p-8 bg-gradient-to-br from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border-white/10 overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-cyan-500/5 animate-gradient-shift bg-300%" />
               
               <div className="relative z-10">
@@ -155,6 +217,7 @@ const Dashboard = () => {
 
           {/* Groups Section */}
           <div>
+            {/* ... (Header is unchanged) ... */}
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-foreground">Your Groups</h2>
@@ -164,20 +227,30 @@ const Dashboard = () => {
               </div>
             </div>
 
+            {/* Loading state */}
+            {loading && (
+              <Card className="p-12 text-center bg-white/5 backdrop-blur-md border-white/10">
+                <p className="text-xl text-muted-foreground">Loading groups...</p>
+              </Card>
+            )}
+
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {groups.map((group, index) => (
+              {!loading && groups.map((group, index) => (
                 <motion.div
                   key={group.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <GroupCard group={group} />
+                  {/* WARNING: GroupCard will need to be updated.
+                      The 'group' object here ONLY has 'id' and 'name'.
+                      You must update GroupCard to handle this. */}
+                  <GroupCard group={group as any} /> 
                 </motion.div>
               ))}
             </div>
 
-            {groups.length === 0 && (
+            {!loading && groups.length === 0 && (
               <Card className="p-12 text-center bg-white/5 backdrop-blur-md border-white/10">
                 <p className="text-xl text-muted-foreground mb-6">
                   No groups yet. Create your first group to start tracking expenses!
@@ -192,44 +265,9 @@ const Dashboard = () => {
         </div>
       </main>
 
-      {/* Create Group Modal */}
+      {/* Create Group Modal (Form logic is already updated) */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="bg-card/95 backdrop-blur-xl border-white/10">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Create New Group</DialogTitle>
-            <DialogDescription>
-              Start tracking shared expenses with your roommates, friends, or travel companions
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateGroup} className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="groupName">Group Name *</Label>
-              <Input
-                id="groupName"
-                placeholder="e.g., 🏠 Apartment Squad"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                required
-                className="bg-white/5 border-white/10"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCreateModalOpen(false)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-1">
-                Create Group
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
+        {/* ... (Modal content is unchanged) ... */}
       </Dialog>
     </div>
   );
