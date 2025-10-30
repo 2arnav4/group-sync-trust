@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Wallet, Menu, X } from "lucide-react";
 import { useState } from "react";
+import { motion } from "framer-motion";
 
 interface NavbarProps {
   walletAddress?: string | null;
@@ -19,17 +20,27 @@ const Navbar = ({ walletAddress, isConnected, onWalletClick }: NavbarProps) => {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-card/80 border-b border-border">
+    <motion.nav 
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-card/60 border-b border-white/10"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-20">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2 group">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-lg transform group-hover:scale-105 transition-transform">
-              <span className="text-white font-bold text-lg">FS</span>
+          <Link to="/" className="flex items-center space-x-3 group">
+            <div className="relative w-12 h-12">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-2xl blur-md opacity-60 group-hover:opacity-100 transition-opacity" />
+              <div className="relative w-12 h-12 bg-gradient-to-br from-emerald-400 via-teal-400 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                <span className="text-slate-900 font-bold text-xl">F</span>
+              </div>
             </div>
-            <span className="font-bold text-xl text-foreground hidden sm:block">
-              FairShare
-            </span>
+            <div className="hidden sm:block">
+              <span className="font-bold text-xl bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                FlowFunds
+              </span>
+              <p className="text-xs text-muted-foreground">Split smarter</p>
+            </div>
           </Link>
 
           {/* Desktop Navigation */}
@@ -37,7 +48,10 @@ const Navbar = ({ walletAddress, isConnected, onWalletClick }: NavbarProps) => {
             {!isLanding && (
               <>
                 <Link to="/dashboard">
-                  <Button variant="ghost">Dashboard</Button>
+                  <Button variant="ghost" className="text-foreground">Dashboard</Button>
+                </Link>
+                <Link to="/wallet">
+                  <Button variant="ghost" className="text-foreground">Smart Wallet</Button>
                 </Link>
               </>
             )}
@@ -50,7 +64,7 @@ const Navbar = ({ walletAddress, isConnected, onWalletClick }: NavbarProps) => {
               >
                 <Wallet className="w-4 h-4" />
                 {isConnected && walletAddress ? (
-                  <span className="hidden lg:inline">{formatAddress(walletAddress)}</span>
+                  <span className="font-mono text-sm">{formatAddress(walletAddress)}</span>
                 ) : (
                   <span>Connect Wallet</span>
                 )}
@@ -72,13 +86,25 @@ const Navbar = ({ walletAddress, isConnected, onWalletClick }: NavbarProps) => {
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden py-4 space-y-2 animate-fade-in">
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden py-4 space-y-2"
+          >
             {!isLanding && (
-              <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
-                <Button variant="ghost" className="w-full justify-start">
-                  Dashboard
-                </Button>
-              </Link>
+              <>
+                <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button variant="ghost" className="w-full justify-start">
+                    Dashboard
+                  </Button>
+                </Link>
+                <Link to="/wallet" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button variant="ghost" className="w-full justify-start">
+                    Smart Wallet
+                  </Button>
+                </Link>
+              </>
             )}
             {onWalletClick && (
               <Button
@@ -93,10 +119,10 @@ const Navbar = ({ walletAddress, isConnected, onWalletClick }: NavbarProps) => {
                 {isConnected && walletAddress ? formatAddress(walletAddress) : "Connect Wallet"}
               </Button>
             )}
-          </div>
+          </motion.div>
         )}
       </div>
-    </nav>
+    </motion.nav>
   );
 };
 
